@@ -16,7 +16,6 @@ type Config struct {
 	Format        string
 	Headless      bool
 	Verbose       bool
-	Quiet         bool
 	Timeout       time.Duration
 
 	// Form-based login

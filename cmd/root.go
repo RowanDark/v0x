@@ -34,14 +34,23 @@ var cfg config.Config
 var noHeadless bool
 
 var rootCmd = &cobra.Command{
-	Use:          "v0x",
-	Short:        "v0x is a modern web wordlist generator",
+	Use:          "v0x --url <target> [flags]",
+	Short:        "v0x — modern web wordlist generator",
 	SilenceUsage: true,
 	Long: `v0x crawls web pages and extracts words to build targeted wordlists.
-It supports headless browser crawling via playwright-go and structured
-output formats including txt, json, csv, and markdown.`,
+Supports headless browser rendering via playwright-go, structured output
+formats, and optional authentication.
+
+Required:
+  --url        Target URL to crawl (e.g. https://target.com)
+
+Output defaults to stdout in txt format (CeWL-compatible).
+Use --output to write to a file and --format to change output type.`,
+	Example: `  v0x --url https://target.com
+  v0x --url https://target.com --depth 3 --format json --output wordlist.json
+  v0x --url https://target.com --auth-cookie "session=abc" --format md --output report.md`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !cfg.Quiet && term.IsTerminal(int(os.Stdout.Fd())) {
+		if term.IsTerminal(int(os.Stdout.Fd())) {
 			fmt.Fprint(os.Stderr, banner)
 		}
 
@@ -68,7 +77,7 @@ output formats including txt, json, csv, and markdown.`,
 			authStrategyName = "bearer"
 		}
 
-		if cfg.Verbose && !cfg.Quiet {
+		if cfg.Verbose {
 			fmt.Fprintf(os.Stderr, "v0x: crawling %s (depth=%d, headless=%v, auth=%s)\n",
 				cfg.URL, cfg.Depth, cfg.Headless, authStrategyName)
 		}
@@ -87,6 +96,8 @@ output formats including txt, json, csv, and markdown.`,
 			}
 			defer f.Close()
 			w = f
+		} else if term.IsTerminal(int(os.Stdout.Fd())) {
+			fmt.Fprintln(os.Stderr, "--- wordlist output ---")
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -123,7 +134,7 @@ output formats including txt, json, csv, and markdown.`,
 				r := extractor.Extract(page.HTML, cfg)
 				agg.Add(r)
 				pagesCrawled++
-				if cfg.Verbose && !cfg.Quiet {
+				if cfg.Verbose {
 					fmt.Fprintf(os.Stderr, "v0x: page %s — %d words\n", page.URL, len(r.Words))
 				}
 			}
@@ -163,7 +174,7 @@ func Execute() {
 func init() {
 	flags := rootCmd.PersistentFlags()
 
-	flags.StringVar(&cfg.URL, "url", "", "Target URL (required)")
+	flags.StringVar(&cfg.URL, "url", "", "Target URL to crawl (required)")
 	flags.IntVar(&cfg.Depth, "depth", 2, "Max crawl depth")
 	flags.IntVar(&cfg.MinWordLength, "min-word-length", 3, "Minimum word length to collect")
 	flags.StringVar(&cfg.UserAgent, "user-agent", "v0x/1.0", "Custom User-Agent string")
@@ -173,7 +184,6 @@ func init() {
 	flags.BoolVar(&noHeadless, "no-headless", false, "Disable headless, use net/http instead")
 	flags.IntVar(&cfg.Delay, "delay", 500, "Delay in ms between requests")
 	flags.BoolVar(&cfg.Verbose, "verbose", false, "Verbose logging")
-	flags.BoolVar(&cfg.Quiet, "quiet", false, "Suppress banner and non-essential output")
 	flags.DurationVar(&cfg.Timeout, "timeout", 5*time.Minute, "Max crawl duration (0 = unlimited)")
 
 	// Form-based login (playwright-only)
